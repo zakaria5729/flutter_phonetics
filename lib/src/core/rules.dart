@@ -8,6 +8,7 @@ import '../errors.dart';
 import 'language.dart';
 import 'phonetic_rule.dart';
 
+/// A spelling that can replace another, with how alike they sound.
 class PhoneticAlternative {
   PhoneticAlternative(this.text, this.similarity)
       : logSimilarity = math.log(similarity);
@@ -20,6 +21,7 @@ class PhoneticAlternative {
   String toString() => '$text($similarity)';
 }
 
+/// The rules of one language, compiled for fast lookup.
 class PhoneticRuleSet {
   PhoneticRuleSet._(
       this.language,
@@ -33,10 +35,14 @@ class PhoneticRuleSet {
             : PhoneticArgumentException(
                 'invalid phonetic rules: ${_problems.join('; ')}');
 
+  /// Builds a rule set from [rules] for [language].
+  ///
+  /// Problems are reported through [error].
   factory PhoneticRuleSet(Iterable<PhoneticRule> rules,
           {required PhoneticLanguage language}) =>
       _build(rules, language, const []);
 
+  /// Reads a rule set from the form written by [toJson].
   factory PhoneticRuleSet.fromJson(Object? json,
       {required PhoneticLanguage language}) {
     final rules = <PhoneticRule>[];
@@ -185,6 +191,7 @@ class PhoneticRuleSet {
 
   static final Expando<PhoneticRuleSet> _defaults = Expando();
 
+  /// The default rule set of [language].
   static PhoneticRuleSet forLanguage(PhoneticLanguage language) =>
       _defaults[language] ??=
           PhoneticRuleSet(language.rules, language: language);
@@ -192,19 +199,28 @@ class PhoneticRuleSet {
   final PhoneticLanguage language;
   final Map<String, List<List<PhoneticAlternative>>> _scoringAlternatives;
   final Map<String, List<List<PhoneticAlternative>>> _generatingAlternatives;
+
+  /// The rules this set was built from.
   final List<PhoneticRule> rules;
   final int longestSpellingLength;
   final List<String> _problems;
+
+  /// The problem with the rules, or `null` when they are valid.
   final PhoneticArgumentException? error;
 
   String get languageCode => language.code;
 
+  /// Returns a new set with [extraRules] added.
   PhoneticRuleSet extend(Iterable<PhoneticRule> extraRules) =>
       _build([...rules, ...extraRules], language, _problems);
 
+  /// Whether any rule covers [spelling].
   bool hasRuleFor(String spelling) =>
       _scoringAlternatives.containsKey(spelling);
 
+  /// The spellings that can replace [spelling] at the given place in a word.
+  ///
+  /// With [generating] set, rules marked score-only are left out.
   List<PhoneticAlternative> alternativesFor(
     String spelling, {
     bool atWordStart = false,
@@ -217,6 +233,7 @@ class PhoneticRuleSet {
     return byContext[(atWordStart ? 1 : 0) | (atWordEnd ? 2 : 0)];
   }
 
+  /// Writes the rules in a form that can be sent to a worker.
   List<Object> toJson() => [
         for (final rule in rules)
           [
@@ -228,6 +245,8 @@ class PhoneticRuleSet {
       ];
 }
 
+/// Gives a language its default rule set.
 extension PhoneticLanguageRules on PhoneticLanguage {
+  /// The rules this language ships with.
   PhoneticRuleSet get defaultRuleSet => PhoneticRuleSet.forLanguage(this);
 }

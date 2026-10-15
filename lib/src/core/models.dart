@@ -2,6 +2,7 @@
 /// Description: Data models representing phonetic matches, scores, and letter changes.
 library;
 
+/// One letter or group of letters that was swapped to reach a variant.
 class PhoneticChange {
   const PhoneticChange({
     required this.position,
@@ -10,9 +11,16 @@ class PhoneticChange {
     required this.similarity,
   });
 
+  /// Where in the original word the swap happened.
   final int position;
+
+  /// The spelling in the original word.
   final String from;
+
+  /// The spelling used in the variant.
   final String to;
+
+  /// How alike the two spellings sound, from 0 to 1.
   final double similarity;
 
   Map<String, Object> toJson() => {
@@ -37,12 +45,18 @@ class PhoneticChange {
   int get hashCode => Object.hash(position, from, to, similarity);
 }
 
+/// A spelling variant with its match percentage.
 class PhoneticMatch {
   const PhoneticMatch(this.word, this.score,
       [this.changes = const <PhoneticChange>[]]);
 
+  /// The variant spelling.
   final String word;
+
+  /// How closely the variant sounds like the input, from 0 to 100.
   final double score;
+
+  /// The swaps that turn the input into [word].
   final List<PhoneticChange> changes;
 
   Map<String, Object> toJson() => {

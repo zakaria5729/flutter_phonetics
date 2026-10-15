@@ -6,6 +6,10 @@ import '../errors.dart';
 import 'phonetic_rule.dart';
 import 'text_normalizer.dart';
 
+/// Describes a language: its rules and how its text is cleaned up before use.
+///
+/// The bundled ones are [banglaLanguage] and [englishLanguage]; build your own to
+/// add another language.
 class PhoneticLanguage {
   PhoneticLanguage({
     required String code,
@@ -39,6 +43,9 @@ class PhoneticLanguage {
             'canonical sequences must not have an empty key',
         ]);
 
+  /// Reads a language from the form written by [toJson].
+  ///
+  /// A malformed definition is reported through [error].
   factory PhoneticLanguage.fromJson(Object? json) {
     if (json is! Map) {
       return PhoneticLanguage._(
@@ -94,12 +101,25 @@ class PhoneticLanguage {
     );
   }
 
+  /// The language code, for example `bn`.
   final String code;
+
+  /// The language name.
   final String name;
+
+  /// The default sound-alike rules.
   final List<PhoneticRule> rules;
+
+  /// Whether upper and lower case letters are treated as the same.
   final bool foldCase;
+
+  /// Letter sequences that are rewritten to one standard form before use.
   final Map<String, String> canonicalSequences;
+
+  /// Code points of marks that attach to a letter instead of standing alone.
   final Set<int> marks;
+
+  /// The problem with the definition, or `null` when it is valid.
   final PhoneticArgumentException? error;
 
   late final TextNormalizer normalizer = TextNormalizer(
@@ -108,8 +128,10 @@ class PhoneticLanguage {
     marks: marks,
   );
 
+  /// Cleans up [text] the way the engine does before comparing it.
   String normalize(String text) => normalizer.normalize(text);
 
+  /// Writes the language in a form that can be sent to a worker.
   Map<String, Object?> toJson() => {
         'code': code,
         'name': name,
