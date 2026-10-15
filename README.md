@@ -371,3 +371,52 @@ final (:matches, :error) = await call;
 - `cancelAll()` cancels everything pending and the instance stays usable.
 - `dispose()` cancels everything and shuts the worker down.
 
+## Complexity
+
+n is the length of the input, R the number of results, m the length of the
+other word and C the number of candidates.
+
+| | Time | Extra space |
+| --- | --- | --- |
+| `generate` | O(n + R (n + log R)) | O(R n) |
+| `similarity` | O(n m) | O(m) |
+| `rank` | O(C n m), usually much less | O(n + m + limit) |
+
+`generate` is a best-first search over letter swaps. Each result costs a
+constant number of heap pushes plus building its string, so the work follows
+the output size and never the number of possible combinations. `rank` stops
+scoring a candidate as soon as it cannot reach the cut-off.
+
+## Scores
+
+Every swap has a similarity, for example স→শ is 0.95 and স→ছ is 0.85. A
+variant's score is the product of its swaps, so two স→শ swaps give 90.25%. The
+default rules are `banglaRules` in `lib/src/languages/bangla/bangla_rules.dart`
+and `englishRules` in `lib/src/languages/english/english_rules.dart`.
+
+## Algorithm Usage
+
+The engine uses a **best-first search algorithm** backed by a max-heap priority queue. Instead of generating all possible combinations upfront, it always expands the highest-scoring letter swaps first and stops immediately as soon as `maxResults` are collected or candidate scores drop below `minScore`.
+
+## Development
+
+```bash
+dart test -p vm,chrome
+dart test -p chrome -c dart2wasm
+cd example && flutter run
+```
+
+The web worker script in `lib/src/worker/web_worker_script.g.dart` is the
+engine compiled to JavaScript. After changing `lib/src/core`,
+`lib/src/protocol` or `tool/web_worker.dart`, run
+`dart run tool/build_web_worker.dart`. A test fails if you forget.
+
+## Connect with Developer
+
+[LinkedIn](https://www.linkedin.com/in/zakaria5729) |
+[GitHub](https://github.com/zakaria5729) |
+[Stack Overflow](https://stackoverflow.com/users/8641776/zakaria-hossain?tab=profile) |
+[Medium](https://medium.com/@zakaria5729) |
+[Substack](https://substack.com/@zakaria5729) |
+[Twitter](https://twitter.com/zakaria5729) |
+[Facebook](https://www.facebook.com/zakaria5729)
