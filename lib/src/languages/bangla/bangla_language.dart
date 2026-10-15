@@ -24,6 +24,7 @@ const Set<int> _banglaMarks = {
   0x200D,
 };
 
+/// The Bangla language definition.
 final PhoneticLanguage banglaLanguage = PhoneticLanguage(
   code: 'bn',
   name: 'Bangla',

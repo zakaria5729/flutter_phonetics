@@ -39,6 +39,7 @@ final Map<String, String> _accentedLetters = {
     for (final accented in entry.value.split('')) accented: entry.key,
 };
 
+/// The English language definition.
 final PhoneticLanguage englishLanguage = PhoneticLanguage(
   code: 'en',
   name: 'English',

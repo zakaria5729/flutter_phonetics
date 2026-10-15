@@ -5,7 +5,9 @@ library;
 import '../../phonetics.dart';
 import 'bangla_language.dart';
 
+/// Sound-alike spelling search for Bangla.
 class BanglaPhonetics extends Phonetics {
+  /// Creates a Bangla instance. See [Phonetics.new] for the settings.
   BanglaPhonetics({
     super.rules,
     super.gapSimilarity,
@@ -14,5 +16,6 @@ class BanglaPhonetics extends Phonetics {
     super.executionMode,
   }) : super(language: banglaLanguage);
 
+  /// A shared instance with the default settings.
   static final BanglaPhonetics instance = BanglaPhonetics();
 }

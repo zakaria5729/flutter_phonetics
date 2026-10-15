@@ -5,6 +5,7 @@ library;
 import '../../core/phonetic_rule.dart';
 
 // ড় and ঢ় are escaped because they look the same as ড + nukta and ঢ + nukta.
+/// The default Bangla sound-alike rules.
 final List<PhoneticRule> banglaRules = [
   PhoneticRule(['স', 'শ', 'ষ'], 0.95),
   PhoneticRule(['ছ', 'স', 'শ'], 0.85),

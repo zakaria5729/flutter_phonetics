@@ -13,7 +13,18 @@ import 'protocol/protocol.dart';
 import 'results.dart';
 import 'worker/worker.dart';
 
+/// Finds sound-alike spellings of a word and scores how close two spellings are.
+///
+/// Work runs off the calling thread: in an isolate on Dart VM platforms and in a
+/// Web Worker on the web. Every method returns a record holding the value and an
+/// `error`; nothing is thrown.
 class Phonetics {
+  /// Creates an instance for [language].
+  ///
+  /// [rules] replaces the language's default rules. [gapSimilarity],
+  /// [markGapSimilarity] and [unrelatedSimilarity] tune how missing letters, missing
+  /// marks and unrelated letters are scored. [executionMode] decides what happens
+  /// when a request arrives while another is still running.
   Phonetics({
     required PhoneticLanguage language,
     PhoneticRuleSet? rules,
@@ -55,19 +66,30 @@ class Phonetics {
     }
   }
 
+  /// The language this instance works with.
   final PhoneticLanguage language;
   PhoneticExecutionMode _executionMode;
   final PhoneticWorker? _worker;
   final PhoneticException? _setupError;
 
+  /// The kind of worker running the requests, for example `isolate` or `web worker`.
   String get workerName => _worker?.name ?? 'unavailable';
 
+  /// How overlapping requests are handled.
   PhoneticExecutionMode get executionMode => _executionMode;
 
+  /// Changes how overlapping requests are handled, including on shared instances
+  /// such as [BanglaPhonetics.instance].
   void setExecutionMode(PhoneticExecutionMode mode) {
     _executionMode = mode;
   }
 
+  /// Generates spelling variants of [input] that sound alike, best match first.
+  ///
+  /// Only variants scoring at least [minScore] (0 to 100) are returned, up to
+  /// [maxResults]; pass `null` for no limit. [includeOriginal] keeps the input in
+  /// the list, [maxChanges] limits how many letters may differ, and [cancelToken]
+  /// stops the request early.
   Future<PhoneticMatchesResult> generate(
     String input, {
     double minScore = 70,
@@ -93,6 +115,7 @@ class Phonetics {
     );
   }
 
+  /// Like [generate], but returns only the spellings without scores.
   Future<PhoneticWordsResult> generateWords(
     String input, {
     double minScore = 70,
@@ -115,6 +138,7 @@ class Phonetics {
     );
   }
 
+  /// Scores how alike [a] and [b] sound, from 0 to 100.
   Future<PhoneticSimilarityResult> similarity(
     String a,
     String b, {
@@ -125,6 +149,8 @@ class Phonetics {
     return (score: result.value ?? 0.0, error: result.error);
   }
 
+  /// Tells whether [a] and [b] sound alike, meaning their similarity is at least
+  /// [minScore].
   Future<PhoneticMatchCheckResult> matches(
     String a,
     String b, {
@@ -138,6 +164,10 @@ class Phonetics {
     return (isMatch: result.score >= minScore, error: result.error);
   }
 
+  /// Orders [candidates] by how closely they sound like [query].
+  ///
+  /// Candidates scoring below [minScore] are dropped, and [limit] keeps only the
+  /// best ones.
   Future<PhoneticMatchesResult> rank(
     String query,
     Iterable<String> candidates, {
@@ -162,12 +192,14 @@ class Phonetics {
     );
   }
 
+  /// Cancels every request that has not finished yet.
   void cancelAll() {
     try {
       _worker?.cancelAll();
     } catch (_) {}
   }
 
+  /// Stops the background worker. Later calls return a disposed error.
   Future<void> dispose() async {
     try {
       await _worker?.dispose();

@@ -4,6 +4,7 @@ library;
 
 import '../../core/phonetic_rule.dart';
 
+/// The default English sound-alike rules.
 final List<PhoneticRule> englishRules = [
   for (final letter in 'bcdfglmnprstz'.split(''))
     PhoneticRule(['$letter$letter', letter], 0.95,
