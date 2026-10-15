@@ -1,0 +1,5 @@
+timeout: 60s
+
+# some tests block the main thread on purpose, and browser tabs from the same
+# site can share an event loop
+concurrency: 1
