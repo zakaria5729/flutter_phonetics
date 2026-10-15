@@ -22,7 +22,12 @@ int _resultLimit(int? requested, int inputLength) => math.min(
     math.min(requested ?? _resultCeiling, _resultCeiling),
     _outputCharacterBudget ~/ math.max(inputLength, 1));
 
+/// The synchronous engine behind [Phonetics].
+///
+/// It runs on the calling thread, so use it for short work or inside your own
+/// isolate. Like [Phonetics], it returns errors in result records.
 class PhoneticEngine {
+  /// Creates an engine for [language], optionally with custom [rules].
   PhoneticEngine({
     required this.language,
     PhoneticRuleSet? rules,
@@ -40,17 +45,31 @@ class PhoneticEngine {
             markGapSimilarity,
             unrelatedSimilarity);
 
+  /// The language the engine works with.
   final PhoneticLanguage language;
+
+  /// The rules used for generating and scoring.
   final PhoneticRuleSet rules;
+
+  /// Score of a letter that is missing from the other spelling, above 0 and up to 1.
   final double gapSimilarity;
+
+  /// Score of a missing mark such as a vowel sign, above 0 and up to 1.
   final double markGapSimilarity;
+
+  /// Score of two letters with no rule between them, above 0 and up to 1.
   final double unrelatedSimilarity;
+
+  /// The problem with the settings, or `null` when they are valid.
   final PhoneticArgumentException? error;
 
   final double _logGap;
   final double _logMarkGap;
   final double _logUnrelated;
 
+  /// Generates spelling variants of [input] that sound alike, best match first.
+  ///
+  /// See [Phonetics.generate] for the arguments.
   PhoneticMatchesResult generate(
     String input, {
     double minScore = 70,
@@ -75,6 +94,7 @@ class PhoneticEngine {
     }
   }
 
+  /// Like [generate], but returns only the spellings.
   PhoneticWordsResult generateWords(
     String input, {
     double minScore = 70,
@@ -95,6 +115,7 @@ class PhoneticEngine {
     );
   }
 
+  /// Scores how alike [a] and [b] sound, from 0 to 100.
   PhoneticSimilarityResult similarity(String a, String b) {
     final problem = error;
     if (problem != null) return (score: 0.0, error: problem);
@@ -111,6 +132,8 @@ class PhoneticEngine {
     }
   }
 
+  /// Tells whether [a] and [b] sound alike, meaning their similarity is at least
+  /// [minScore].
   PhoneticMatchCheckResult matches(String a, String b, {double minScore = 80}) {
     final problem = minScoreError(minScore);
     if (problem != null) return (isMatch: false, error: problem);
@@ -118,6 +141,7 @@ class PhoneticEngine {
     return (isMatch: result.score >= minScore, error: result.error);
   }
 
+  /// Orders [candidates] by how closely they sound like [query].
   PhoneticMatchesResult rank(
     String query,
     Iterable<String> candidates, {
