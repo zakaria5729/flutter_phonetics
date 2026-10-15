@@ -1,3 +1,7 @@
+## 0.1.1
+
+- Added API documentation for the public classes, methods and fields.
+
 ## 0.1.0
 
 - Initial release. `Phonetics` with `generate`, `generateWords`, `similarity`,
