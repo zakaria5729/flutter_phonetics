@@ -2,12 +2,15 @@
 /// Description: Cancellation token and listener management for async phonetic tasks.
 library;
 
+/// Lets the caller stop a running request.
 class PhoneticCancelToken {
   bool _isCancelled = false;
   List<void Function()>? _listeners;
 
+  /// Whether [cancel] has been called.
   bool get isCancelled => _isCancelled;
 
+  /// Marks the token as cancelled and notifies the listeners once.
   void cancel() {
     if (_isCancelled) return;
     _isCancelled = true;
@@ -21,6 +24,7 @@ class PhoneticCancelToken {
     }
   }
 
+  /// Calls [listener] when the token is cancelled, or right away if it already is.
   void addListener(void Function() listener) {
     if (_isCancelled) {
       try {
@@ -31,5 +35,6 @@ class PhoneticCancelToken {
     }
   }
 
+  /// Stops [listener] from being called.
   void removeListener(void Function() listener) => _listeners?.remove(listener);
 }
