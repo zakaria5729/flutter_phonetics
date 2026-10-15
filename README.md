@@ -296,3 +296,78 @@ final (:matches, :error) = engine.generate('Philip', minScore: 80);
 final score = engine.similarity('Philip', 'Filip').score;
 ```
 
+## Rules
+
+```dart
+final rules = banglaLanguage.defaultRuleSet.extend([
+  const PhoneticRule(['ম', 'ন'], 0.6),
+]);
+if (rules.error != null) print(rules.error!.message);
+
+final phonetics = BanglaPhonetics(rules: rules);
+```
+
+Invalid rules (a similarity outside 0 to 1, fewer than two spellings, an empty
+spelling) are left out and described in `rules.error`. An engine or `Phonetics`
+built with a rule set that has an error returns that error from every call.
+Rules belong to one language: using English rules with the Bangla language
+returns an error.
+
+A rule can be limited to a place in the word, and can be made score-only:
+
+```dart
+const PhoneticRule(['kn', 'n'], 0.9, position: RulePosition.wordStart);
+const PhoneticRule(['ah', 'a'], 0.9, position: RulePosition.wordEnd);
+const PhoneticRule(['ss', 's'], 0.95, position: RulePosition.notWordStart);
+```
+
+```dart
+const PhoneticRule(['ই', 'ি'], 0.90, scoreOnly: true);
+```
+
+Without a position a rule applies anywhere. Words are separated by spaces and
+hyphens.
+
+A score-only rule counts when comparing words (`similarity`, `matches`, `rank`)
+but is never used to build new spellings in `generate`. The built-in Bangla
+rules use it for independent vowel letters against vowel signs (`ই` and `ি`),
+which would otherwise make `generate` return malformed words such as `মআসুদ`.
+The built-in Bangla rules also treat a final `ো` as optional (`কত` and `কতো`)
+and `ঞ্জ` as `নজ`.
+
+## Cancelling
+
+With the default execution mode a new call already cancels the previous one,
+so a search box needs no extra code. Cancel the rest when the user leaves:
+
+```dart
+Future<void> _onChanged(String text) async {
+  final (:matches, :error) = await phonetics.generate(text, minScore: 80);
+  if (error != null || !mounted) return;
+  setState(() => _matches = matches);
+}
+
+@override
+void dispose() {
+  phonetics.cancelAll();
+  super.dispose();
+}
+```
+
+For finer control pass a `PhoneticCancelToken` to any call. When it is
+cancelled, the call returns straight away with a `PhoneticCancelledException`
+and the work stops on the worker.
+
+```dart
+final token = PhoneticCancelToken();
+final call = phonetics.rank('মাসুদ', customerNames, cancelToken: token);
+token.cancel();
+final (:matches, :error) = await call;
+```
+
+- A job that is running stops within about 10 ms. A request still waiting in
+  the queue is dropped without starting.
+- One token can be passed to many calls.
+- `cancelAll()` cancels everything pending and the instance stays usable.
+- `dispose()` cancels everything and shuts the worker down.
+
