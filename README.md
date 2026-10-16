@@ -400,6 +400,12 @@ and `englishRules` in `lib/src/languages/english/english_rules.dart`.
 
 The engine uses a **best-first search algorithm** backed by a max-heap priority queue. Instead of generating all possible combinations upfront, it always expands the highest-scoring letter swaps first and stops immediately as soon as `maxResults` are collected or candidate scores drop below `minScore`.
 
+## Kotlin
+
+This package is also available for Kotlin:
+[Maven](https://central.sonatype.com/artifact/io.github.zakaria5729/phonetics) |
+[GitHub](https://github.com/zakaria5729/kotlin_phonetics)
+
 ## Development
 
 ```bash
