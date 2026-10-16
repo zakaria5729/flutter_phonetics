@@ -4,6 +4,8 @@ Finds sound-alike spellings of Bangla and English words, with a match percentage
 The work runs on a background thread on every Flutter platform, so the UI never
 waits for it.
 
+Package on pub.dev: https://pub.dev/packages/flutter_phonetics
+
 ```dart
 // Bangla phonetics
 final bangla = BanglaPhonetics.instance;
