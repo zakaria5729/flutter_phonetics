@@ -2,7 +2,7 @@ name: flutter_phonetics
 description: >-
   Finds sound-alike spellings of Bangla and English words with a match
   percentage. Runs on a background thread on every Flutter platform.
-version: 0.1.1
+version: 0.1.2
 repository: https://github.com/zakaria5729/flutter_phonetics
 issue_tracker: https://github.com/zakaria5729/flutter_phonetics/issues
 topics:

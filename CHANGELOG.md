@@ -1,3 +1,7 @@
+## 0.1.2
+
+- Named the author, zakaria5729, in the readme.
+
 ## 0.1.1
 
 - Added API documentation for the public classes, methods and fields.

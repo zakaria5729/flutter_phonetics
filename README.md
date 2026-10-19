@@ -6,6 +6,8 @@ waits for it.
 
 Package on pub.dev: https://pub.dev/packages/flutter_phonetics
 
+Created by [zakaria5729](https://github.com/zakaria5729) (Zakaria Hossain).
+
 ```dart
 // Bangla phonetics
 final bangla = BanglaPhonetics.instance;
@@ -420,6 +422,9 @@ engine compiled to JavaScript. After changing `lib/src/core`,
 `dart run tool/build_web_worker.dart`. A test fails if you forget.
 
 ## Connect with Developer
+
+Built and maintained by Zakaria Hossain, known online as zakaria5729.
+
 
 [LinkedIn](https://www.linkedin.com/in/zakaria5729) |
 [GitHub](https://github.com/zakaria5729) |
