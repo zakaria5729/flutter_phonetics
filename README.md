@@ -6,6 +6,8 @@ waits for it.
 
 Package on pub.dev: https://pub.dev/packages/flutter_phonetics
 
+Live web demo: https://zakaria5729.github.io/flutter_phonetics/
+
 Created by [zakaria5729](https://github.com/zakaria5729) (Zakaria Hossain).
 
 ```dart
