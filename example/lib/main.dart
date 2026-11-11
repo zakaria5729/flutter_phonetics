@@ -5,6 +5,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_phonetics/flutter_phonetics.dart';
 
+import 'cross_language_section.dart';
+
 void main() => runApp(const PhoneticsDemoApp());
 
 enum PhoneticsLanguageChoice {
@@ -206,6 +208,8 @@ class _PhoneticsPageState extends State<PhoneticsPage> {
               key: ValueKey('three_${_language.name}'),
               language: _language,
             ),
+            const SizedBox(height: 16),
+            const CrossLanguageSection(),
           ],
         ),
       ),
