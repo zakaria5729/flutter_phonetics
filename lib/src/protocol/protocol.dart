@@ -10,7 +10,10 @@ import '../core/language.dart';
 import '../core/models.dart';
 import '../core/rules.dart';
 import '../core/validation.dart';
+import '../cross_language/cross_language_engine.dart';
+import '../cross_language/cross_language_models.dart';
 import '../errors.dart';
+import '../results.dart';
 
 export '../core/engine.dart' show PhoneticEngine, PhoneticJob;
 
@@ -36,6 +39,27 @@ PhoneticEngine decodeEngineConfig(Map<Object?, Object?> config) {
 double _numberOrNaN(Object? value) =>
     value is num ? value.toDouble() : double.nan;
 
+typedef JobFactory = PhoneticJob<Object?> Function(
+    Map<Object?, Object?> request);
+
+const _crossLanguageConfigKind = 'cross';
+
+Map<String, Object?> encodeCrossLanguageConfig(PhoneticEngine banglaEngine) => {
+      'kind': _crossLanguageConfigKind,
+      'bangla': encodeEngineConfig(banglaEngine),
+    };
+
+JobFactory decodeJobFactory(Map<Object?, Object?> config) {
+  if (config['kind'] == _crossLanguageConfigKind) {
+    final banglaConfig = config['bangla'];
+    final engine = CrossLanguageEngine.fromBanglaEngine(
+        decodeEngineConfig(banglaConfig is Map ? banglaConfig : const {}));
+    return (request) => createCrossLanguageJob(engine, request);
+  }
+  final engine = decodeEngineConfig(config);
+  return (request) => createJob(engine, request);
+}
+
 Map<String, Object?> generateRequest(String input, double minScore,
         int? maxResults, bool includeOriginal, int? maxChanges) =>
     {
@@ -59,6 +83,108 @@ Map<String, Object?> rankRequest(
       'minScore': minScore,
       'limit': limit,
     };
+
+Map<String, Object?> crossGenerateRequest(
+  String input, {
+  required bool wantsBangla,
+  required bool wantsEnglish,
+  required PhoneticSearchOptions banglaOptions,
+  required PhoneticSearchOptions englishOptions,
+}) =>
+    {
+      'op': 'crossGenerate',
+      'input': input,
+      'wantsBangla': wantsBangla,
+      'wantsEnglish': wantsEnglish,
+      'bangla': _searchOptionsToMap(banglaOptions),
+      'english': _searchOptionsToMap(englishOptions),
+    };
+
+Map<String, Object?> _searchOptionsToMap(PhoneticSearchOptions options) => {
+      'minScore': options.minScore,
+      'maxResults': options.maxResults,
+      'includeOriginal': options.includeOriginal,
+      'maxChanges': options.maxChanges,
+    };
+
+PhoneticSearchOptions _searchOptionsFromMap(Object? map) {
+  final fields = map! as Map;
+  return PhoneticSearchOptions(
+    minScore: (fields['minScore']! as num).toDouble(),
+    maxResults: (fields['maxResults'] as num?)?.toInt(),
+    includeOriginal: fields['includeOriginal']! as bool,
+    maxChanges: (fields['maxChanges'] as num?)?.toInt(),
+  );
+}
+
+PhoneticJob<Object?> createCrossLanguageJob(
+    CrossLanguageEngine engine, Map<Object?, Object?> request) {
+  if (request['op'] != 'crossGenerate') {
+    throw PhoneticArgumentException('unknown operation: ${request['op']}');
+  }
+  final wantsBangla = request['wantsBangla']! as bool;
+  final wantsEnglish = request['wantsEnglish']! as bool;
+  final banglaOptions = _searchOptionsFromMap(request['bangla']);
+  final englishOptions = _searchOptionsFromMap(request['english']);
+  final problem = crossLanguageOptionsError(
+    wantsBangla: wantsBangla,
+    wantsEnglish: wantsEnglish,
+    banglaOptions: banglaOptions,
+    englishOptions: englishOptions,
+  );
+  if (problem != null) throw problem;
+  return _EncodedJob(
+    engine.createJob(
+      request['input']! as String,
+      wantsBangla: wantsBangla,
+      wantsEnglish: wantsEnglish,
+      banglaOptions: banglaOptions,
+      englishOptions: englishOptions,
+    ),
+    _encodeCrossLanguageResult,
+  );
+}
+
+const _argumentErrorKind = 'argument';
+const _workerErrorKind = 'worker';
+
+List<Object?> _encodeCrossLanguageResult(CrossLanguageResult result) => [
+      _encodeResultSide(result.bangla),
+      _encodeResultSide(result.english),
+    ];
+
+List<Object?> _encodeResultSide(PhoneticMatchesResult side) {
+  final error = side.error;
+  return [
+    switch (error) {
+      null => null,
+      PhoneticArgumentException() => _argumentErrorKind,
+      _ => _workerErrorKind,
+    },
+    error?.message,
+    _flattenMatches(side.matches),
+  ];
+}
+
+CrossLanguageResult decodeCrossLanguageResult(Object? payload) {
+  final sides = payload! as List;
+  return CrossLanguageResult(
+    bangla: _decodeResultSide(sides[0]),
+    english: _decodeResultSide(sides[1]),
+  );
+}
+
+PhoneticMatchesResult _decodeResultSide(Object? encoded) {
+  final side = encoded! as List;
+  final kind = side[0] as String?;
+  final message = side[1] as String?;
+  final PhoneticException? error = switch (kind) {
+    null => null,
+    _argumentErrorKind => PhoneticArgumentException(message ?? ''),
+    _ => PhoneticWorkerException(message ?? ''),
+  };
+  return (matches: decodeMatches(side[2]), error: error);
+}
 
 PhoneticJob<Object?> createJob(
     PhoneticEngine engine, Map<Object?, Object?> request) {
@@ -211,12 +337,27 @@ const _workUnitsPerSlice = 16;
 
 class RequestProcessor {
   RequestProcessor(
-    this.engine,
+    PhoneticEngine engine,
+    void Function(Map<String, Object?> response) sendResponse, {
+    Duration sliceDuration = const Duration(milliseconds: 8),
+  }) : this.withJobFactory(
+            (request) => createJob(engine, request), sendResponse,
+            sliceDuration: sliceDuration);
+
+  RequestProcessor.fromConfig(
+    Map<Object?, Object?> config,
+    void Function(Map<String, Object?> response) sendResponse, {
+    Duration sliceDuration = const Duration(milliseconds: 8),
+  }) : this.withJobFactory(decodeJobFactory(config), sendResponse,
+            sliceDuration: sliceDuration);
+
+  RequestProcessor.withJobFactory(
+    this._createJob,
     this._sendResponse, {
     this.sliceDuration = const Duration(milliseconds: 8),
   });
 
-  final PhoneticEngine engine;
+  final JobFactory _createJob;
   final Duration sliceDuration;
   final void Function(Map<String, Object?> response) _sendResponse;
   final Queue<Map<Object?, Object?>> _queue = Queue();
@@ -263,7 +404,7 @@ class RequestProcessor {
         _runningCancelled = false;
         Map<String, Object?>? response;
         try {
-          final job = createJob(engine, request);
+          final job = _createJob(request);
           final sliceTimer = Stopwatch()..start();
           while (!job.isDone && !_runningCancelled) {
             job.advance(_workUnitsPerSlice);

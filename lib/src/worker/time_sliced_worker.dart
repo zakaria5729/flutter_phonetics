@@ -14,8 +14,8 @@ class TimeSlicedWorker extends RequestTrackingWorker {
   final Map<String, Object?> _engineConfig;
   final Duration sliceDuration;
 
-  late final RequestProcessor _processor = RequestProcessor(
-    decodeEngineConfig(_engineConfig),
+  late final RequestProcessor _processor = RequestProcessor.fromConfig(
+    _engineConfig,
     handleResponse,
     sliceDuration: sliceDuration,
   );

@@ -9,6 +9,10 @@ export 'src/core/models.dart' show PhoneticChange, PhoneticMatch;
 export 'src/core/phonetic_rule.dart' show PhoneticRule, RulePosition;
 export 'src/core/rules.dart'
     show PhoneticAlternative, PhoneticLanguageRules, PhoneticRuleSet;
+export 'src/cross_language/cross_language_engine.dart' show CrossLanguageEngine;
+export 'src/cross_language/cross_language_models.dart'
+    show CrossLanguageResult, PhoneticSearchOptions;
+export 'src/cross_language_phonetics.dart' show CrossLanguagePhonetics;
 export 'src/errors.dart'
     show
         PhoneticArgumentException,

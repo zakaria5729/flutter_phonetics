@@ -113,8 +113,8 @@ class IsolateWorker extends RequestTrackingWorker {
 
 void runIsolate(List<Object?> arguments) {
   final mainPort = arguments[0]! as SendPort;
-  final engine = decodeEngineConfig(arguments[1]! as Map);
-  final processor = RequestProcessor(engine, mainPort.send);
+  final processor =
+      RequestProcessor.fromConfig(arguments[1]! as Map, mainPort.send);
   final receivePort = RawReceivePort();
   receivePort.handler =
       (Object? message) => processor.onMessage(message! as Map);

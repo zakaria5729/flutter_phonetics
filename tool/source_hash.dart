@@ -7,6 +7,13 @@ import 'dart:io';
 
 const workerSourcePaths = [
   'lib/src/core',
+  'lib/src/cross_language',
+  'lib/src/errors.dart',
+  'lib/src/results.dart',
+  'lib/src/languages/bangla/bangla_language.dart',
+  'lib/src/languages/bangla/bangla_rules.dart',
+  'lib/src/languages/english/english_language.dart',
+  'lib/src/languages/english/english_rules.dart',
   'lib/src/protocol',
   'tool/web_worker.dart',
 ];

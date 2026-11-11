@@ -204,7 +204,7 @@ GenerateJob createGenerateJob(
   bool includeOriginal,
   int? maxChanges,
 ) =>
-    GenerateJob._(
+    GenerateJob.forRules(
         engine, input, minScore, maxResults, includeOriginal, maxChanges);
 
 RankJob createRankJob(PhoneticEngine engine, String query,
@@ -255,39 +255,83 @@ class _SearchState {
   final int order;
 }
 
-class _Slot {
-  _Slot(this.start, this.spelling, this.alternatives);
+class SearchSlot {
+  SearchSlot(this.start, this.spelling, this.alternatives, this.sequence);
 
   final int start;
   final String spelling;
   final List<PhoneticAlternative> alternatives;
+  final int sequence;
+}
+
+List<SearchSlot> orderSlotsByConfidence(List<SearchSlot> slots) {
+  final ordered = List<SearchSlot>.of(slots);
+  ordered.sort((a, b) {
+    final bySimilarity = b.alternatives.first.similarity
+        .compareTo(a.alternatives.first.similarity);
+    return bySimilarity != 0 ? bySimilarity : a.sequence.compareTo(b.sequence);
+  });
+  return ordered;
+}
+
+List<SearchSlot> _findRuleSlots(PhoneticRuleSet rules, String input) {
+  final found = <SearchSlot>[];
+  var index = 0;
+  while (index < input.length) {
+    var length = 1;
+    List<PhoneticAlternative>? alternatives;
+    for (var candidateLength =
+            math.min(rules.longestSpellingLength, input.length - index);
+        candidateLength >= 1;
+        candidateLength--) {
+      final options = rules.alternativesFor(
+        input.substring(index, index + candidateLength),
+        atWordStart: startsWord(input, index),
+        atWordEnd: endsWord(input, index + candidateLength),
+        generating: true,
+      );
+      if (options.isNotEmpty) {
+        length = candidateLength;
+        alternatives = options;
+        break;
+      }
+    }
+    if (alternatives != null) {
+      found.add(SearchSlot(
+          index, input.substring(index, index + length), alternatives, index));
+    }
+    index += length;
+  }
+  return orderSlotsByConfidence(found);
 }
 
 // Best-first search. A state has at most three children and none of them
 // scores higher than its parent, so every combination is reached once and
 // results come out in descending score order.
 class GenerateJob extends PhoneticJob<List<PhoneticMatch>> {
-  GenerateJob._(
-    PhoneticEngine engine,
-    String input,
-    double minScore,
-    int? maxResults,
-    bool includeOriginal,
-    int? maxChanges,
-  )   : _normalizer = engine.language.normalizer,
-        _input = engine.language.normalize(input),
-        _letterCase = engine.language.normalizer.detectCase(input),
+  GenerateJob({
+    required String referenceSpelling,
+    required List<SearchSlot> slots,
+    required String Function(String word) renderWord,
+    required double minScore,
+    required int? maxResults,
+    required int outputLengthBasis,
+    required bool includeOriginal,
+    required int? maxChanges,
+  })  : _input = referenceSpelling,
+        _slots = slots,
+        _renderWord = renderWord,
         _minScore = minScore,
         _logCutoff = _logCutoffFor(minScore),
-        _maxResults = _resultLimit(maxResults, input.length),
+        _maxResults = _resultLimit(maxResults, outputLengthBasis),
         _includeOriginal = includeOriginal,
         _maxChanges = maxChanges ?? _noLimit,
-        _maxExpansions = _resultLimit(maxResults, input.length) * 16 + 1024 {
+        _maxExpansions =
+            _resultLimit(maxResults, outputLengthBasis) * 16 + 1024 {
     if (_input.isEmpty) {
       _isDone = true;
       return;
     }
-    _findSlots(engine.rules);
     _queue.push(_SearchState(
       parent: null,
       slot: -1,
@@ -298,9 +342,34 @@ class GenerateJob extends PhoneticJob<List<PhoneticMatch>> {
     ));
   }
 
-  final TextNormalizer _normalizer;
+  factory GenerateJob.forRules(
+    PhoneticEngine engine,
+    String input,
+    double minScore,
+    int? maxResults,
+    bool includeOriginal,
+    int? maxChanges,
+  ) {
+    final normalizer = engine.language.normalizer;
+    final normalizedInput = engine.language.normalize(input);
+    final letterCase = normalizer.detectCase(input);
+    return GenerateJob(
+      referenceSpelling: normalizedInput,
+      slots: normalizedInput.isEmpty
+          ? const []
+          : _findRuleSlots(engine.rules, normalizedInput),
+      renderWord: (word) => normalizer.applyCase(word, letterCase),
+      minScore: minScore,
+      maxResults: maxResults,
+      outputLengthBasis: input.length,
+      includeOriginal: includeOriginal,
+      maxChanges: maxChanges,
+    );
+  }
+
   final String _input;
-  final LetterCase _letterCase;
+  final List<SearchSlot> _slots;
+  final String Function(String word) _renderWord;
   final double _minScore;
   final double _logCutoff;
   final int _maxResults;
@@ -308,7 +377,6 @@ class GenerateJob extends PhoneticJob<List<PhoneticMatch>> {
   final int _maxChanges;
   final int _maxExpansions;
 
-  final List<_Slot> _slots = [];
   final _Heap<_SearchState> _queue = _Heap<_SearchState>((a, b) =>
       a.logScore > b.logScore ||
       (a.logScore == b.logScore && a.order < b.order));
@@ -318,42 +386,6 @@ class GenerateJob extends PhoneticJob<List<PhoneticMatch>> {
   int _createdCount = 0;
   int _expansions = 0;
   bool _isDone = false;
-
-  void _findSlots(PhoneticRuleSet rules) {
-    final found = <_Slot>[];
-    var index = 0;
-    while (index < _input.length) {
-      var length = 1;
-      List<PhoneticAlternative>? alternatives;
-      for (var candidateLength =
-              math.min(rules.longestSpellingLength, _input.length - index);
-          candidateLength >= 1;
-          candidateLength--) {
-        final options = rules.alternativesFor(
-          _input.substring(index, index + candidateLength),
-          atWordStart: startsWord(_input, index),
-          atWordEnd: endsWord(_input, index + candidateLength),
-          generating: true,
-        );
-        if (options.isNotEmpty) {
-          length = candidateLength;
-          alternatives = options;
-          break;
-        }
-      }
-      if (alternatives != null) {
-        found.add(_Slot(
-            index, _input.substring(index, index + length), alternatives));
-      }
-      index += length;
-    }
-    found.sort((a, b) {
-      final bySimilarity = b.alternatives.first.similarity
-          .compareTo(a.alternatives.first.similarity);
-      return bySimilarity != 0 ? bySimilarity : a.start.compareTo(b.start);
-    });
-    _slots.addAll(found);
-  }
 
   @override
   bool get isDone => _isDone;
@@ -390,8 +422,7 @@ class GenerateJob extends PhoneticJob<List<PhoneticMatch>> {
     if (state.slot < 0) {
       _seenWords.add(_input);
       if (_includeOriginal) {
-        _results.add(
-            PhoneticMatch(_normalizer.applyCase(_input, _letterCase), 100));
+        _results.add(PhoneticMatch(_renderWord(_input), 100));
       }
       return;
     }
@@ -402,8 +433,12 @@ class GenerateJob extends PhoneticJob<List<PhoneticMatch>> {
         current = current.parent) {
       _changedStates.add(current);
     }
-    _changedStates
-        .sort((a, b) => _slots[a.slot].start.compareTo(_slots[b.slot].start));
+    _changedStates.sort((a, b) {
+      final first = _slots[a.slot];
+      final second = _slots[b.slot];
+      final byStart = first.start.compareTo(second.start);
+      return byStart != 0 ? byStart : first.sequence.compareTo(second.sequence);
+    });
 
     final buffer = StringBuffer();
     var cursor = 0;
@@ -419,8 +454,7 @@ class GenerateJob extends PhoneticJob<List<PhoneticMatch>> {
     final word = buffer.toString();
     if (!_seenWords.add(word)) return;
 
-    _results
-        .add(PhoneticMatch(_normalizer.applyCase(word, _letterCase), score, [
+    _results.add(PhoneticMatch(_renderWord(word), score, [
       for (final changed in _changedStates)
         PhoneticChange(
           position: _slots[changed.slot].start,
