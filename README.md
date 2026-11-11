@@ -20,10 +20,6 @@ final (:matches, :error) = await bangla.generate('মাসুদ', minScore: 90
 final english = EnglishPhonetics.instance;
 final result = await english.generate('Philip', minScore: 90);
 // Philip 100%, Filip 95%, Phillip 95%, Philipp 95%
-
-// Bangla and English spellings of one name, from how it sounds
-final names = await CrossLanguagePhonetics.instance.generate('মাসুদ', minScore: 90);
-// names.english: Masud 100%, Masood 95%, Masoud 90%, Mashud 90%
 ```
 
 | Platform | Runs on |
@@ -31,6 +27,27 @@ final names = await CrossLanguagePhonetics.instance.generate('মাসুদ', 
 | Android, iOS, macOS, Windows, Linux | a background isolate |
 | Web (JS and wasm builds) | a web worker, bundled in the package |
 | Web page that blocks workers | the main thread, in 4 ms slices |
+
+### Bangla and English names together
+
+Type a Bangla or an English name and get Bangla and English spellings of it,
+built from how the name sounds, not by transliterating it.
+
+```dart
+final crossLanguage = CrossLanguagePhonetics.instance;
+
+final fromBangla = await crossLanguage.generate('মাসুদ', minScore: 90);
+// fromBangla.english: Masud 100, Masood 95, Masoud 90, Mashud 90
+
+final fromEnglish = await crossLanguage.generate('Masud', minScore: 90);
+// fromEnglish.bangla: মাসুদ 100, মাসূদ 95, মাসুড 95, মসুদ 93, মাশুদ 93
+```
+
+![Cross-language demo: a Bangla or English name gives Bangla and English spellings side by side](https://raw.githubusercontent.com/zakaria5729/flutter_phonetics/v0.2.0/doc/cross_language_demo.gif)
+
+The demo above is from the [Kotlin port](https://github.com/zakaria5729/kotlin_phonetics),
+which has the same cross-language engine. See [Cross-language names](#cross-language-names)
+for the options, errors and limits.
 
 ## Install
 
@@ -220,11 +237,6 @@ for (final match in fromEnglish.bangla.matches) {
   print('${match.word} ${match.score}%');
 }
 ```
-
-![Cross-language demo: a Bangla or English name gives Bangla and English spellings side by side](https://raw.githubusercontent.com/zakaria5729/flutter_phonetics/v0.2.0/doc/cross_language_demo.gif)
-
-The demo above is from the [Kotlin port](https://github.com/zakaria5729/kotlin_phonetics),
-which has the same cross-language engine.
 
 It is not transliteration. A name is split into sound units, every unit carries
 its own spellings in the other script with a confidence, and the same
