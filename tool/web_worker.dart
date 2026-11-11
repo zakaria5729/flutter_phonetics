@@ -11,8 +11,9 @@ void main() {
   final scope = globalContext as web.DedicatedWorkerGlobalScope;
   RequestProcessor? processor;
 
-  RequestProcessor createProcessor(PhoneticEngine engine) => RequestProcessor(
-        engine,
+  RequestProcessor createProcessor(Map<Object?, Object?> config) =>
+      RequestProcessor.fromConfig(
+        config,
         (response) => scope.postMessage(response.jsify()),
         sliceDuration: const Duration(milliseconds: 10),
       );
@@ -22,12 +23,10 @@ void main() {
     if (message is! Map) return;
     if (message['op'] == 'init') {
       final config = message['config'];
-      final engine = decodeEngineConfig(config is Map ? config : const {});
-      processor = createProcessor(engine);
+      processor = createProcessor(config is Map ? config : const {});
       scope.postMessage({'id': -1, 'ok': true}.jsify());
       return;
     }
-    (processor ??= createProcessor(decodeEngineConfig(const {})))
-        .onMessage(message);
+    (processor ??= createProcessor(const {})).onMessage(message);
   }.toJS;
 }

@@ -1,3 +1,14 @@
+## 0.2.0
+
+- Added cross-language phonetic generation. `CrossLanguagePhonetics` (async) and
+  `CrossLanguageEngine` (sync) take a Bangla or an English name and return two
+  independent lists, Bangla spellings and English spellings, each built from how
+  the name sounds. The list in the input's own script is what the existing
+  engine returns.
+- Added `PhoneticSearchOptions` and `CrossLanguageResult`.
+- The generator can now start from pre-built slots. Existing `generate`,
+  `similarity`, `matches` and `rank` results are unchanged.
+
 ## 0.1.3
 
 - Added the live web demo link to the readme.

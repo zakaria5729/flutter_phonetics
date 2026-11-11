@@ -7,11 +7,10 @@ import 'core/models.dart';
 import 'core/language.dart';
 import 'core/rules.dart';
 import 'core/validation.dart';
-import 'errors.dart';
 import 'execution_mode.dart';
+import 'phonetic_request_runner.dart';
 import 'protocol/protocol.dart';
 import 'results.dart';
-import 'worker/worker.dart';
 
 /// Finds sound-alike spellings of a word and scores how close two spellings are.
 ///
@@ -34,21 +33,19 @@ class Phonetics {
     PhoneticExecutionMode executionMode = PhoneticExecutionMode.cancelPrevious,
   }) : this._(
           language,
-          _setUp(language, rules, gapSimilarity, markGapSimilarity,
-              unrelatedSimilarity),
-          executionMode,
+          _createRunner(language, rules, gapSimilarity, markGapSimilarity,
+              unrelatedSimilarity, executionMode),
         );
 
-  Phonetics._(this.language, _SetUp setUp, this._executionMode)
-      : _worker = setUp.worker,
-        _setupError = setUp.error;
+  Phonetics._(this.language, this._runner);
 
-  static _SetUp _setUp(
+  static PhoneticRequestRunner _createRunner(
     PhoneticLanguage language,
     PhoneticRuleSet? rules,
     double gapSimilarity,
     double markGapSimilarity,
     double unrelatedSimilarity,
+    PhoneticExecutionMode executionMode,
   ) {
     final engine = PhoneticEngine(
       language: language,
@@ -58,30 +55,27 @@ class Phonetics {
       unrelatedSimilarity: unrelatedSimilarity,
     );
     final setupError = engine.error;
-    if (setupError != null) return _SetUp(null, setupError);
-    try {
-      return _SetUp(createPhoneticWorker(encodeEngineConfig(engine)), null);
-    } catch (error) {
-      return _SetUp(null, PhoneticWorkerException('$error'));
+    if (setupError != null) {
+      return PhoneticRequestRunner.failed(setupError, executionMode);
     }
+    return PhoneticRequestRunner.start(
+        () => encodeEngineConfig(engine), executionMode);
   }
 
   /// The language this instance works with.
   final PhoneticLanguage language;
-  PhoneticExecutionMode _executionMode;
-  final PhoneticWorker? _worker;
-  final PhoneticException? _setupError;
+  final PhoneticRequestRunner _runner;
 
   /// The kind of worker running the requests, for example `isolate` or `web worker`.
-  String get workerName => _worker?.name ?? 'unavailable';
+  String get workerName => _runner.workerName;
 
   /// How overlapping requests are handled.
-  PhoneticExecutionMode get executionMode => _executionMode;
+  PhoneticExecutionMode get executionMode => _runner.executionMode;
 
   /// Changes how overlapping requests are handled, including on shared instances
   /// such as [BanglaPhonetics.instance].
   void setExecutionMode(PhoneticExecutionMode mode) {
-    _executionMode = mode;
+    _runner.executionMode = mode;
   }
 
   /// Generates spelling variants of [input] that sound alike, best match first.
@@ -103,7 +97,7 @@ class Phonetics {
       return (matches: const <PhoneticMatch>[], error: invalid);
     }
 
-    final result = await _run(
+    final result = await _runner.run(
       () => generateRequest(
           input, minScore, maxResults, includeOriginal, maxChanges),
       cancelToken,
@@ -144,7 +138,7 @@ class Phonetics {
     String b, {
     PhoneticCancelToken? cancelToken,
   }) async {
-    final result = await _run(
+    final result = await _runner.run(
         () => similarityRequest(a, b), cancelToken, decodeSimilarity);
     return (score: result.value ?? 0.0, error: result.error);
   }
@@ -180,7 +174,7 @@ class Phonetics {
       return (matches: const <PhoneticMatch>[], error: invalid);
     }
 
-    final result = await _run(
+    final result = await _runner.run(
       () => rankRequest(
           query, candidates.toList(growable: false), minScore, limit),
       cancelToken,
@@ -193,57 +187,8 @@ class Phonetics {
   }
 
   /// Cancels every request that has not finished yet.
-  void cancelAll() {
-    try {
-      _worker?.cancelAll();
-    } catch (_) {}
-  }
+  void cancelAll() => _runner.cancelAll();
 
   /// Stops the background worker. Later calls return a disposed error.
-  Future<void> dispose() async {
-    try {
-      await _worker?.dispose();
-    } catch (_) {}
-  }
-
-  Future<({T? value, PhoneticException? error})> _run<T>(
-    Map<String, Object?> Function() buildRequest,
-    PhoneticCancelToken? cancelToken,
-    T Function(Object?) decode,
-  ) async {
-    final worker = _worker;
-    if (worker == null) return (value: null, error: _setupError);
-
-    final Map<String, Object?> request;
-    try {
-      request = buildRequest();
-    } catch (error) {
-      return (
-        value: null,
-        error:
-            PhoneticArgumentException('could not read the arguments: $error'),
-      );
-    }
-
-    try {
-      final isCancelledAlready = cancelToken?.isCancelled ?? false;
-      if (_executionMode == PhoneticExecutionMode.cancelPrevious &&
-          !isCancelledAlready) {
-        worker.cancelAll();
-      }
-      final payload = await worker.request(request, cancelToken: cancelToken);
-      return (value: decode(payload), error: null);
-    } on PhoneticException catch (error) {
-      return (value: null, error: error);
-    } catch (error) {
-      return (value: null, error: PhoneticWorkerException('$error'));
-    }
-  }
-}
-
-class _SetUp {
-  _SetUp(this.worker, this.error);
-
-  final PhoneticWorker? worker;
-  final PhoneticException? error;
+  Future<void> dispose() => _runner.dispose();
 }

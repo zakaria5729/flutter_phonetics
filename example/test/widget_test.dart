@@ -119,4 +119,28 @@ void main() {
     expect(find.text('Filip'), findsWidgets);
     expect(find.text('মাশুদ'), findsNothing);
   });
+
+  testWidgets('the cross-language section shows both lists side by side', (
+    tester,
+  ) async {
+    await showTallScreen(tester);
+    await tester.pumpWidget(const PhoneticsDemoApp());
+    await tester.ensureVisible(find.textContaining('Bangla spellings'));
+    await settle(tester, () => find.text('Rohim').evaluate().isNotEmpty);
+
+    expect(find.textContaining('Bangla spellings'), findsOneWidget);
+    expect(find.textContaining('English spellings'), findsOneWidget);
+    expect(find.text('Rohim'), findsOneWidget);
+    expect(find.text('Rahim'), findsOneWidget);
+    expect(find.text('best reading'), findsOneWidget);
+    expect(find.text('original'), findsWidgets);
+
+    await tester.tap(find.text('English name'));
+    await settle(tester, () => find.text('রাহিম').evaluate().isNotEmpty);
+
+    expect(find.text('রাহিম'), findsOneWidget);
+    expect(find.text('রহিম'), findsWidgets);
+    expect(find.text('Rahim'), findsWidgets);
+    expect(find.text('best reading'), findsOneWidget);
+  });
 }
