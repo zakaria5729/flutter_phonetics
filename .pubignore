@@ -1,2 +1,3 @@
 benchmark/
 tool/benchmark_*.dart
+doc/

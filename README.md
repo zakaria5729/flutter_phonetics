@@ -20,6 +20,10 @@ final (:matches, :error) = await bangla.generate('মাসুদ', minScore: 90
 final english = EnglishPhonetics.instance;
 final result = await english.generate('Philip', minScore: 90);
 // Philip 100%, Filip 95%, Phillip 95%, Philipp 95%
+
+// Bangla and English spellings of one name, from how it sounds
+final names = await CrossLanguagePhonetics.instance.generate('মাসুদ', minScore: 90);
+// names.english: Masud 100%, Masood 95%, Masoud 90%, Mashud 90%
 ```
 
 | Platform | Runs on |
@@ -189,6 +193,143 @@ case of what you type: `Asad` gives `Assad`, `ASAD` gives `ASSAD`.
 The rule weights for the built-in languages are starting points. Tune them
 with your own data.
 
+## Cross-language names
+
+`CrossLanguagePhonetics` takes a Bangla name or an English name and returns two
+independent lists, each with `word` and `score` from 0 to 100: Bangla spellings
+and English spellings.
+
+| Input | Bangla list | English list |
+| --- | --- | --- |
+| Bangla name | what `BanglaPhonetics` returns | new: English spellings from the Bangla pronunciation |
+| English name | new: Bangla spellings from the English spelling | what `EnglishPhonetics` returns |
+
+```dart
+final crossLanguage = CrossLanguagePhonetics.instance;
+
+final fromBangla = await crossLanguage.generate('মাসুদ', minScore: 90);
+// fromBangla.english: Masud 100, Masood 95, Masoud 90, Mashud 90
+// fromBangla.bangla: মাসুদ 100, মাসূদ 97, মাশুদ 95, মাষুদ 95, মাশূদ 92.15, মাষূদ 92.15
+
+final fromEnglish = await crossLanguage.generate('Masud', minScore: 90);
+// fromEnglish.bangla: মাসুদ 100, মাসূদ 95, মাসুড 95, মসুদ 93, মাশুদ 93
+// fromEnglish.english: Masud 100, Massud 95, Masudd 95, Massudd 90.25, Maasud 90, Masood 90
+
+if (fromEnglish.error != null) print(fromEnglish.error!.message);
+for (final match in fromEnglish.bangla.matches) {
+  print('${match.word} ${match.score}%');
+}
+```
+
+![Cross-language demo: a Bangla or English name gives Bangla and English spellings side by side](https://raw.githubusercontent.com/zakaria5729/flutter_phonetics/v0.2.0/doc/cross_language_demo.gif)
+
+The demo above is from the [Kotlin port](https://github.com/zakaria5729/kotlin_phonetics),
+which has the same cross-language engine.
+
+It is not transliteration. A name is split into sound units, every unit carries
+its own spellings in the other script with a confidence, and the same
+best-first search that powers `generate` combines them. There is no Roman
+middle step and no Roman list in the result. Everything runs offline, in an
+isolate or a web worker like the rest of the package.
+
+### Reading the two lists
+
+- The list in the input's own script is exactly what the existing engine
+  returns for the same arguments, `changes` included.
+- The list in the other script always starts with the best reading at 100%.
+  That reading is a model's best guess, not a "correct" spelling.
+- Never compare a Bangla score with an English score. They come from different
+  models. Compare scores only inside one list.
+- `minScore` and `maxResults` apply to each list on its own. `includeOriginal`
+  concerns only the list in the input's own script. `maxChanges` limits how many
+  sounds may differ from the best reading, in both lists.
+
+```dart
+final result = await crossLanguage.generate(
+  'Masud',
+  banglaOptions: const PhoneticSearchOptions(minScore: 85, maxResults: 20),
+  englishOptions: const PhoneticSearchOptions(minScore: 95, includeOriginal: false),
+  cancelToken: token,
+);
+
+final banglaOnly = await crossLanguage.generate('Masud', languages: {banglaLanguage});
+```
+
+`languages` defaults to both Bangla and English. A list that was not requested is
+empty with no error. `banglaOptions` and `englishOptions` replace `minScore`,
+`maxResults`, `includeOriginal` and `maxChanges` for one list.
+
+### Errors
+
+Request level problems (an invalid argument, an empty or unsupported `languages`
+set, a cancelled or disposed request) fail both lists with the same error. Other
+problems belong to one list:
+
+| Input | Result |
+| --- | --- |
+| Empty or blank | both lists empty, no error |
+| Only digits, another script, only emoji | both requested lists get an argument error |
+| An emoji inside an English name | only the Bangla list fails, because it has to read the name |
+| An emoji inside a Bangla name | only the English list fails |
+| A broken Bangla rule set or setting | only the Bangla list fails, when it comes from the existing engine |
+
+`CrossLanguagePhonetics` handles cancellation, `cancelAll`, `dispose` and the
+execution modes exactly like `Phonetics`. `CrossLanguageEngine` is the
+synchronous version for code that is already on a background thread.
+
+### How a Bangla name becomes English
+
+The name is split into words, then into syllables: a consonant group (a conjunct
+is several consonants joined by a hasanta) with an optional vowel sign, or an
+independent vowel. Zero width joiners and stray marks are removed first.
+
+The silent `অ` is the hard part. Walking the syllables from the right, each
+inherent vowel is spoken or dropped:
+
+- the first one is always spoken: রহিম `Rohim`
+- the last one is dropped after a single consonant: ম in রহিম
+- the last one is spoken after a conjunct or before `ং ঁ ঃ`: শান্ত `Shanto`
+- a middle one is spoken inside a conjunct: মোস্তফা `Mostofa`
+- a middle one is dropped when the next syllable is spoken: ফারজানা `Farjana`
+- a middle one is spoken when the next syllable is dropped: কমল `Komol`
+
+Each sound then offers English spellings with a confidence, for example `স`
+`s` with `sh` at 0.9, `ু` `u` with `oo` 0.95, `ou` 0.9 and `o` 0.8, `ক্ষ`
+`ksh` with `kkh`, `x` and `kh`, a doubled sound `dd` with the single `d` at 0.9.
+Words are processed separately and capitalised after a space or a hyphen.
+
+### How an English name becomes Bangla
+
+The lowercase name is split into sound units: vowel digraphs (`ee`, `ou`,
+`ai`, `ay` and others), consonant digraphs (`sh`, `ch`, `th`, `ng` and others),
+single letters, and a doubled consonant is one doubled unit. A vowel unit becomes
+a vowel sign after a consonant and an independent letter otherwise. Two consonants
+in a row choose between a hasanta and the plain inherent vowel from the pair:
+`Abdul` gives আব্দুল and `Smith` gives স্মিথ, but `Islam` gives ইসলাম.
+
+Some choices come from the context: a word final `a` is almost always `া`,
+`o` before `ng` is the inherent vowel (`Rongpur` gives রংপুর), word initial `st`
+wants `ট` (`Stephen` gives স্টেফেন) while Arabic origin names keep `ত`
+(`Mostafa` gives মোস্তাফা), and `ং` is never followed by a vowel sign. The
+generated Bangla spellings are kept structurally valid: no vowel sign without a
+consonant, no word starting with `ণ`.
+
+### Limits of the model
+
+- The best reading follows Bangla pronunciation: `Rohim`, `Korim`, `Mohammod`.
+  Common Arabic origin spellings (`Rahim` 95, `Karim` 95, `Muhammad` 85.5,
+  `Mohammed` 85) are alternatives and score a little lower, so a high `minScore`
+  such as 90 can leave some of them out.
+- English to Bangla cannot tell Arabic origin from English origin names.
+  `Hossain` gives হোস্সাইন first, with the common হোসাইন at 90.
+- Dropping the inherent vowel is a rule based model, not a dictionary. Irregular
+  words (কমলা, pronounced "komola", gives `Komla`) may need a spelling the rules
+  do not favour.
+- Only a small set of names was checked by hand. Expect odd results on other
+  names.
+- There is no cross-script `similarity` or `rank` between a Bangla and an
+  English string.
+
 ## Errors
 
 `error` is a `PhoneticException`, a sealed class, so a `switch` can cover every
@@ -287,8 +428,8 @@ Things to know:
 - Tokens, `cancelAll()` and `dispose()` work in both modes.
 
 The example app shows each of these: a search box on `BanglaPhonetics.instance`,
-a heavy job on its own `BanglaPhonetics()`, and three calls at once in either
-mode.
+a heavy job on its own `BanglaPhonetics()`, three calls at once in either
+mode, and Bangla and English spellings side by side from `CrossLanguagePhonetics`.
 
 ## Synchronous engine
 
@@ -420,7 +561,8 @@ cd example && flutter run
 
 The web worker script in `lib/src/worker/web_worker_script.g.dart` is the
 engine compiled to JavaScript. After changing `lib/src/core`,
-`lib/src/protocol` or `tool/web_worker.dart`, run
+`lib/src/cross_language`, `lib/src/protocol`, the Bangla or English language and
+rule files, or `tool/web_worker.dart`, run
 `dart run tool/build_web_worker.dart`. A test fails if you forget.
 
 ## Connect with Developer
